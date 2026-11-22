@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { it } from "node:test";
 import { NextRequest } from "next/server";
-import { proxy } from "../proxy.ts";
-import { createPluginDocumentRoute } from "../src/server/plugin-transport.ts";
+
+// The active-client file lives under LH_DATA_DIR: isolate it BEFORE the
+// config-loading imports (hence dynamic).
+process.env.LH_DATA_DIR = mkdtempSync(path.join(tmpdir(), "lh-document-access-"));
+const { proxy } = await import("../proxy.ts");
+const { createPluginDocumentRoute } = await import("../src/server/plugin-transport.ts");
+const { claimActiveClient } = await import("../src/server/active-client.ts");
 
 it("streamed document route shares browser policy before params, plugin work or multipart body access", async t => {
 	const keys = ["LH_DESKTOP_SERVER", "LH_DESKTOP_API_SECRET", "LH_ALLOWED_HOSTS"] as const;
@@ -39,8 +47,15 @@ it("streamed document route shares browser policy before params, plugin work or 
 		}
 		assert.equal(convert.mock.callCount(), 0);
 		const form = new FormData(); form.append("file", new File(["owned fixture"], "small.txt"));
-		const post = new Request("http://localhost/api/plugins/document-one/documents/markdown", {
-			method: "POST", headers: { origin: "http://localhost", "sec-fetch-site": "same-origin" }, body: form,
+		const documentUrl = "http://localhost/api/plugins/document-one/documents/markdown";
+		const sameOrigin = { origin: "http://localhost", "sec-fetch-site": "same-origin" };
+		claimActiveClient("tab-a", {});
+		const displaced = await route.POST(new Request(documentUrl, { method: "POST", headers: { ...sameOrigin, "x-learnharness-client": "tab-old" }, body: form }), { params: Promise.resolve({ id: "document-one" }) });
+		assert.equal(displaced.status, 409, "a displaced tab is refused like Proxy refuses it");
+		assert.deepEqual(await displaced.json(), { error: "displaced" });
+		assert.equal(convert.mock.callCount(), 0);
+		const post = new Request(documentUrl, {
+			method: "POST", headers: { ...sameOrigin, "x-learnharness-client": "tab-a" }, body: form,
 		});
 		assert.equal((await route.POST(post, { params: Promise.resolve({ id: "document-one" }) })).status, 200);
 		assert.equal(convert.mock.callCount(), 1);

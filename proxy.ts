@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { activeClientRefusal } from "./src/server/active-client.ts";
 import { apiRequestRefusal } from "./src/server/desktop-access.ts";
 
 /** Protects API methods, including SSE and spending/settings routes. The one
@@ -11,6 +12,14 @@ export function proxy(request: NextRequest) {
 		return NextResponse.json(
 			{ error: refusal },
 			{ status: 403, headers: { "Cache-Control": "no-store" } },
+		);
+	}
+	// Browser-only single-client lock: a displaced tab can no longer act.
+	const displaced = activeClientRefusal(request);
+	if (displaced) {
+		return NextResponse.json(
+			{ error: displaced },
+			{ status: 409, headers: { "Cache-Control": "no-store" } },
 		);
 	}
 	return NextResponse.next();

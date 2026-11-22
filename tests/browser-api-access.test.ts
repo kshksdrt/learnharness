@@ -4,11 +4,18 @@
  * and a cross-site check on writes. None of this is user authentication.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, it } from "node:test";
 import { NextRequest } from "next/server";
-import { proxy } from "../proxy.ts";
 import { browserAPIRefusal, browserHostAllowed, browserOnlyMode } from "../src/server/desktop-access.ts";
+
+// Proxy reads the active-client file under LH_DATA_DIR: isolate it BEFORE the
+// config-loading imports (hence dynamic).
+process.env.LH_DATA_DIR = mkdtempSync(path.join(tmpdir(), "lh-browser-api-"));
+const { proxy } = await import("../proxy.ts");
+const { claimActiveClient } = await import("../src/server/active-client.ts");
 
 const secret = "a".repeat(64);
 
@@ -104,7 +111,8 @@ describe("proxy", () => {
 			const csrf = proxy(new NextRequest("http://localhost:3000/api/chats", { method: "POST", headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site", "content-type": "text/plain" } }));
 			assert.equal(csrf.status, 403);
 			assert.equal(proxy(new NextRequest("http://rebind.attacker.example:3000/api/settings")).status, 403);
-			const ok = proxy(new NextRequest("http://localhost:3000/api/chats", { method: "POST", headers: { origin: "http://localhost:3000", "sec-fetch-site": "same-origin" } }));
+			claimActiveClient("tab-a", {});
+			const ok = proxy(new NextRequest("http://localhost:3000/api/chats", { method: "POST", headers: { origin: "http://localhost:3000", "sec-fetch-site": "same-origin", "x-learnharness-client": "tab-a" } }));
 			assert.equal(ok.headers.get("x-middleware-next"), "1");
 		});
 	});

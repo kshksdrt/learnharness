@@ -1,4 +1,5 @@
 import { isPluginHostError } from "./plugin-host.ts";
+import { activeClientRefusal } from "./active-client.ts";
 import { apiRequestRefusal } from "./desktop-access.ts";
 import type { PluginFrontendContext, PluginInfo } from "../core/plugins.ts";
 
@@ -65,7 +66,9 @@ export function createPluginTransport(deps: { getHost(): Promise<PluginTransport
 export function createPluginDocumentRoute(transport: Pick<ReturnType<typeof createPluginTransport>, "convertDocument">) {
 	const refusal = (request: Request) => {
 		const error = apiRequestRefusal(request);
-		return error ? json({ error }, 403) : undefined;
+		if (error) return json({ error }, 403);
+		const displaced = activeClientRefusal(request);
+		return displaced ? json({ error: displaced }, 409) : undefined;
 	};
 	const unsupported = (request: Request) => refusal(request) ?? new Response(null, { status: 405 });
 	return {

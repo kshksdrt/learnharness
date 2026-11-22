@@ -40,6 +40,9 @@ export interface ServerEvents {
 	"plugins-changed": Record<string, never>;
 	/** Live-only, plugin-scoped notifications. Reconnect requires snapshot resync. */
 	"plugin-message": { pluginId: string; topic: string; data?: unknown };
+	/** Browser-only mode: a tab claimed the single active-client slot. Every
+	 *  other tab (id !== active) locks itself (src/server/active-client.ts). */
+	"client-displaced": { active: string };
 }
 
 export type ServerEventType = keyof ServerEvents;
@@ -60,6 +63,7 @@ export const SERVER_EVENT_TYPES = [
 	"side-chats-changed",
 	"plugins-changed",
 	"plugin-message",
+	"client-displaced",
 ] as const satisfies readonly ServerEventType[];
 
 /** One notification: distribute over the vocabulary so narrowing `type`

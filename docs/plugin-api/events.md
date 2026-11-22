@@ -68,6 +68,9 @@ export interface ServerEvents {
         topic: string;
         data?: unknown;
     };
+    "client-displaced": {
+        active: string;
+    };
 }
 ```
 
@@ -95,6 +98,8 @@ export interface ServerEvents {
 - ["plugin-message".pluginId](#serverevents-plugin-messagepluginid)
 - ["plugin-message".topic](#serverevents-plugin-messagetopic)
 - ["plugin-message".data](#serverevents-plugin-messagedata)
+- ["client-displaced"](#serverevents-client-displaced)
+- ["client-displaced".active](#serverevents-client-displacedactive)
 
 ### ServerEvents "turn-started"
 
@@ -275,6 +280,23 @@ topic: string;
 
 ```ts
 data?: unknown;
+```
+
+### ServerEvents "client-displaced"
+
+Browser-only mode: a tab claimed the single active-client slot. Every
+other tab (id !== active) locks itself (src/server/active-client.ts).
+
+```ts
+"client-displaced": {
+    active: string;
+};
+```
+
+### ServerEvents "client-displaced".active
+
+```ts
+active: string;
 ```
 
 ## ServerEventType

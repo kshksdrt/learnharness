@@ -26,8 +26,11 @@
  */
 import { subscribe, type ServerEvent } from "../core/events.ts";
 
-/** One window's subscription as an SSE Response. */
-export function eventsResponse(): Response {
+/** One window's subscription as an SSE Response. `displacedBy` (browser-only
+ * single-client lock): the window's id is stale, so its first frame is the
+ * client-displaced notice naming the active client (a tab that slept through
+ * the original notice still locks on reconnect). */
+export function eventsResponse(options: { displacedBy?: string } = {}): Response {
 	const encoder = new TextEncoder();
 	let teardown: (() => void) | undefined;
 	const stream = new ReadableStream<Uint8Array>({
@@ -62,6 +65,9 @@ export function eventsResponse(): Response {
 				frame(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
 			});
 			heartbeat = setInterval(() => frame(": ping\n\n"), 25_000);
+			if (options.displacedBy !== undefined) {
+				frame(`event: client-displaced\ndata: ${JSON.stringify({ active: options.displacedBy })}\n\n`);
+			}
 
 			teardown = stop;
 		},
